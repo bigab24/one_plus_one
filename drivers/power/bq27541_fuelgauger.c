@@ -1361,6 +1361,7 @@ static int bq27541_battery_probe(struct i2c_client *client,
 	struct bq27541_device_info *di;
 	struct bq27541_access_methods *bus;
 	int num;
+	int retval = 0;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
 		return -ENODEV;
