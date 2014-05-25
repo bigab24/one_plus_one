@@ -3177,6 +3177,11 @@ CONFIG_MSM_DEVFREQ_DEVBW=y
 # CONFIG_SENSORS is not set
 
 #
+# Suspend backoff
+#
+CONFIG_SUSPEND_BACKOFF=y
+
+#
 # File systems
 #
 CONFIG_DCACHE_WORD_ACCESS=y
