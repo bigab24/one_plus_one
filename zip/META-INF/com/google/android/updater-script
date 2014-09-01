@@ -1,0 +1,8 @@
+ui_print("Installing Tyr Kernel");
+ui_print("Feel the power of Tyr");
+ui_print("A germanic GOD");
+ui_print("Have fun");
+ui_print("Complete");
+package_extract_file("boot.img", "/dev/block/platform/msm_sdcc.1/by-name/boot");
+ui_print("Thank you for installing Tyr Kernel :D");
+set_progress(1.000000);
