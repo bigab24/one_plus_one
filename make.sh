@@ -15,3 +15,4 @@ DATE_END=$(date +"%s")
 echo
 DIFF=$(($DATE_END - $DATE_START))
 echo "Build completed in $(($DIFF / 60)) minute(s) and $(($DIFF % 60)) seconds."
+./build.sh
