@@ -5,6 +5,8 @@ fi
 echo "Making oneplus one kernel"
 DATE_START=$(date +"%s")
 
+make clean && make mrproper
+
 export ARCH=arm
 export SUBARCH=arm
 make franco_defconfig
