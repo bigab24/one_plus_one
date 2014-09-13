@@ -327,7 +327,6 @@ static struct usbmix_name_map gamecom780_map[] = {
 	{ 9, NULL }, /* FU, speaker out */
 	{}
 };
-
 static const struct usbmix_name_map kef_x300a_map[] = {
 	{ 10, NULL }, /* firmware locks up (?) when we try to access this FU */
 	{ 0 }
