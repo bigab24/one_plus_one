@@ -390,8 +390,8 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -mfpu=neon-vfpv4 -mtune=cortex-a15 -mcpu=cortex-a15 -fgraphite -floop-parallelize-all \
-		   -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block -floop-flatten
-		   -Wno-format-security 
+		   -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block -floop-flatten \
+		   -Wno-format-security \
 
 
 KBUILD_AFLAGS_KERNEL :=
