@@ -4524,11 +4524,7 @@ static ssize_t show_slab_objects(struct kmem_cache *s,
 				if (flags & SO_TOTAL)
 					WARN_ON_ONCE(1);
 				else if (flags & SO_OBJECTS)
-					WARN_ON_ONCE(1);
-				else
-					x = page->pages;
-				total += x;
-				nodes[node] += x;
+					WARN_ON_ONCE(1);			
 			}
 			per_cpu[node]++;
 		}
