@@ -14,7 +14,7 @@ cd ../ramdisk_one_plus_one/
 
 cd ../one_plus_one/
 
-zipfile="franco.Kernel-nightly.zip"
+zipfile="TyrV.zip"
 echo "making zip file"
 cp ../ramdisk_one_plus_one/image-new.img zip/boot.img
 cd zip/
