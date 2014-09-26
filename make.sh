@@ -7,7 +7,6 @@ DATE_START=$(date +"%s")
 
 make clean && make mrproper
 
-export LOCALVERSION=~Tyr-KERNEL
 export ARCH=arm
 export SUBARCH=arm
 make Tyr_defconfig
