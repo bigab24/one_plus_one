@@ -713,16 +713,6 @@ done:
 	return;
 }
 
-static void shift_voice_devices(u32 idx)
-{
-	for (; idx < rtac_voice_data.num_of_voice_combos - 1; idx++) {
-		memcpy(&rtac_voice_data.voice[idx],
-			&rtac_voice_data.voice[idx + 1],
-			sizeof(rtac_voice_data.voice[idx]));
-		voice_session_id[idx] = voice_session_id[idx + 1];
-	}
-}
-
 void rtac_remove_voice(u32 cvs_handle)
 {
 	u32 i = 0;
@@ -732,7 +722,6 @@ void rtac_remove_voice(u32 cvs_handle)
 	/* look for device */
 	for (i = 0; i < rtac_voice_data.num_of_voice_combos; i++) {
 		if (rtac_voice_data.voice[i].cvs_handle == cvs_handle) {
-			shift_voice_devices(i);
 			rtac_voice_data.num_of_voice_combos--;
 			memset(&rtac_voice_data.voice[
 				rtac_voice_data.num_of_voice_combos], 0,
