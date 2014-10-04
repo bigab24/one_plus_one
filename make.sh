@@ -2,6 +2,13 @@
 if [ "$CPU_JOB_NUM" = "" ] ; then
 CPU_JOB_NUM=`grep -c processor /proc/cpuinfo`
 fi
+echo "Cleaning old files"
+rm -f ../one_plus_one/zip/Tyr*
+rm -f ../one_plus_one/zip/boot.img
+rm -f ../ram*/image-new*
+rm -f ../ram*/ramdisk-new.cpio*
+rm -f ../ram*/spl*/boot.img-dtb
+rm -f ../ram*/spl*/boot.img-zImage
 echo "Making oneplus one kernel"
 DATE_START=$(date +"%s")
 
