@@ -5,7 +5,7 @@ ARCH=$2
 SMP=$3
 PREEMPT=$4
 CC=$5
-KBUILD_BUILD_VERSION=27
+KBUILD_BUILD_VERSION=28
 
 vecho() { [ "${quiet}" = "silent_" ] || echo "$@" ; }
 
@@ -74,7 +74,7 @@ UTS_TRUNCATE="cut -b -$UTS_LEN"
 
   echo \#define UTS_VERSION \"`echo $UTS_VERSION | $UTS_TRUNCATE`\"
 
-  echo \#define LINUX_COMPILE_BY \"`echo DerRomtester | $UTS_TRUNCATE`\"
+  echo \#define LINUX_COMPILE_BY \"`echo | $UTS_TRUNCATE`\"
   echo \#define LINUX_COMPILE_HOST \"`echo DerRomtester | $UTS_TRUNCATE`\"
 
   echo \#define LINUX_COMPILER \"`$CC -v 2>&1 | grep ' version '`\"
