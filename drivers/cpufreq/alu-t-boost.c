@@ -20,7 +20,6 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/notifier.h>
-#include <mach/cpufreq.h>
 #include <linux/cpufreq.h>
 #include <linux/cpu.h>
 #include <linux/sched.h>
@@ -67,7 +66,6 @@ static void do_input_boost_rem(struct work_struct *work)
 
 	for_each_possible_cpu(i) {
 		dprintk("Removing input boost for CPU%u\n", i);
-		set_cpu_min_lock(i, 0);
 	}
 }
 
@@ -88,7 +86,6 @@ static void do_input_boost(struct work_struct *work)
 		unsigned int cur = 0;
 
 		dprintk("Input boost for CPU%u\n", i);
-		set_cpu_min_lock(i, input_boost_freq);
 
 		cur = cpufreq_quick_get(i);
 		if (cur > 0 && cpu_online(i)) {
