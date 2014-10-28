@@ -97,6 +97,7 @@ extern int tegra_input_boost (struct cpufreq_policy *policy,
 #define DEFAULT_IGNORE_NICE 1
 #endif
 
+#define CONFIG_CPU_FREQ_GOV_SMARTMAX_M7
 #ifdef CONFIG_CPU_FREQ_GOV_SMARTMAX_M7
 #define DEFAULT_SUSPEND_IDEAL_FREQ 594000
 #define DEFAULT_AWAKE_IDEAL_FREQ 1026000
@@ -292,48 +293,6 @@ struct cpufreq_governor cpufreq_gov_smartmax = {
     .owner = THIS_MODULE,
     };
 
-static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall) {
-
-	u64 idle_time;
-	u64 cur_wall_time;
-	u64 busy_time;
-
-	cur_wall_time = jiffies64_to_cputime64(get_jiffies_64());
-
-#ifdef CONFIG_CPU_FREQ_GOV_SMARTMAX_30
-	busy_time  = kstat_cpu(cpu).cpustat.user;
-	busy_time += kstat_cpu(cpu).cpustat.system;
-	busy_time += kstat_cpu(cpu).cpustat.irq;
-	busy_time += kstat_cpu(cpu).cpustat.softirq;
-	busy_time += kstat_cpu(cpu).cpustat.steal;
-	busy_time += kstat_cpu(cpu).cpustat.nice;
-#else
-	busy_time  = kcpustat_cpu(cpu).cpustat[CPUTIME_USER];
-	busy_time += kcpustat_cpu(cpu).cpustat[CPUTIME_SYSTEM];
-	busy_time += kcpustat_cpu(cpu).cpustat[CPUTIME_IRQ];
-	busy_time += kcpustat_cpu(cpu).cpustat[CPUTIME_SOFTIRQ];
-	busy_time += kcpustat_cpu(cpu).cpustat[CPUTIME_STEAL];
-	busy_time += kcpustat_cpu(cpu).cpustat[CPUTIME_NICE];
-#endif
-
-	idle_time = cur_wall_time - busy_time;
-	if (wall)
-		*wall = jiffies_to_usecs(cur_wall_time);
-
-	return jiffies_to_usecs(idle_time);
-}
-
-static inline u64 get_cpu_idle_time(unsigned int cpu, u64 *wall)
-{
-	u64 idle_time = get_cpu_idle_time_us(cpu, NULL);
-
-	if (idle_time == -1ULL)
-		return get_cpu_idle_time_jiffy(cpu, wall);
-	else
-		idle_time += get_cpu_iowait_time_us(cpu, wall);
-
-	return idle_time;
-}
 
 static inline u64 get_cpu_iowait_time(unsigned int cpu, u64 *wall) {
 	u64 iowait_time = get_cpu_iowait_time_us(cpu, wall);
@@ -561,7 +520,7 @@ static void cpufreq_smartmax_timer(struct smartmax_info_s *this_smartmax) {
 		
 		j_this_smartmax = &per_cpu(smartmax_info, j);
 
-		cur_idle_time = get_cpu_idle_time(j, &cur_wall_time);
+		cur_idle_time = get_cpu_idle_time(j, &cur_wall_time, io_is_busy);
 		cur_iowait_time = get_cpu_iowait_time(j, &cur_wall_time);
 
 		wall_time = cur_wall_time - j_this_smartmax->prev_cpu_wall;
@@ -672,7 +631,7 @@ static void update_idle_time(bool online) {
 		j_this_smartmax = &per_cpu(smartmax_info, j);
 
 		j_this_smartmax->prev_cpu_idle = get_cpu_idle_time(j,
-				&j_this_smartmax->prev_cpu_wall);
+				&j_this_smartmax->prev_cpu_wall, io_is_busy);
 				
 		if (ignore_nice)
 #ifdef CONFIG_CPU_FREQ_GOV_SMARTMAX_30
@@ -1031,7 +990,7 @@ static ssize_t store_min_sampling_rate(struct kobject *a, struct attribute *b,
 
 #define define_global_rw_attr(_name)		\
 static struct global_attr _name##_attr =	\
-	__ATTR(_name, 0644, show_##_name, store_##_name)
+	__ATTR(_name, 0666, show_##_name, store_##_name)
 
 #define define_global_ro_attr(_name)		\
 static struct global_attr _name##_attr =	\
@@ -1054,7 +1013,7 @@ define_global_rw_attr(ignore_nice);
 define_global_rw_attr(ramp_up_during_boost);
 define_global_rw_attr(awake_ideal_freq);
 define_global_rw_attr(suspend_ideal_freq);
-define_global_ro_attr(min_sampling_rate);
+define_global_rw_attr(min_sampling_rate);
 
 static struct attribute * smartmax_attributes[] = { 
 	&debug_mask_attr.attr,
@@ -1119,7 +1078,7 @@ static int cpufreq_smartmax_boost_task(void *data) {
 		tegra_input_boost(policy, cur_boost_freq, CPUFREQ_RELATION_H);
 	
         this_smartmax->prev_cpu_idle = get_cpu_idle_time(0,
-						&this_smartmax->prev_cpu_wall);
+						&this_smartmax->prev_cpu_wall, io_is_busy);
 
         unlock_policy_rwsem_write(0);
 #else		
@@ -1143,7 +1102,7 @@ static int cpufreq_smartmax_boost_task(void *data) {
 				start_boost = true;
 				dprintk(SMARTMAX_DEBUG_BOOST, "input boost cpu %d to %d\n", cpu, cur_boost_freq);
 				target_freq(policy, this_smartmax, cur_boost_freq, this_smartmax->old_freq, CPUFREQ_RELATION_H);
-				this_smartmax->prev_cpu_idle = get_cpu_idle_time(cpu, &this_smartmax->prev_cpu_wall);
+				this_smartmax->prev_cpu_idle = get_cpu_idle_time(cpu, &this_smartmax->prev_cpu_wall, io_is_busy);
 			}
 			mutex_unlock(&this_smartmax->timer_mutex);
 
