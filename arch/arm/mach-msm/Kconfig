@@ -1874,6 +1874,12 @@ config INTELLI_HOTPLUG
 	help
 	  Generic Intelli-plug cpu hotplug driver for ARM SOCs
 
+config MAKO_HOTPLUG
+	bool "Enable mako_hotplug driver"
+	default y
+	help
+	  Generic hotplug driver for ARM Socs
+
 config MSM_CPU_FREQ_SET_MIN_MAX
 	bool "Set Min/Max CPU frequencies."
 	default n
