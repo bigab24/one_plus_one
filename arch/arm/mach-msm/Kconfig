@@ -1880,6 +1880,12 @@ config MAKO_HOTPLUG
 	help
 	  Generic hotplug driver for ARM Socs
 
+config DYNAMIC_HOTPLUG
+	bool "Enable dynamic_hotplug cpu driver"
+	default n
+	help
+	   Generic Hotplug driver for ARM SOCs
+
 config MSM_CPU_FREQ_SET_MIN_MAX
 	bool "Set Min/Max CPU frequencies."
 	default n
