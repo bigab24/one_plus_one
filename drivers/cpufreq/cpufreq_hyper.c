@@ -1,5 +1,5 @@
-*
- *  drivers/cpufreq/cpufreq_HYPER.c
+/*
+ *  drivers/cpufreq/cpufreq_hyper.c
  *
  *  Copyright (C)  2001 Russell King
  *            (C)  2003 Venkatesh Pallipadi <venkatesh.pallipadi@intel.com>.
@@ -24,7 +24,6 @@
 #include <linux/tick.h>
 #include <linux/ktime.h>
 #include <linux/sched.h>
-/*#include <linux/pm_qos.h>*/
 #include <linux/input.h>
 #include <linux/slab.h>
 
@@ -35,12 +34,12 @@
 
 #define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(10)
 #define MIN_FREQUENCY_DOWN_DIFFERENTIAL		(1)
-#define DEF_FREQUENCY_UP_THRESHOLD		(85)
+#define DEF_FREQUENCY_UP_THRESHOLD		(70)
 #define DEF_SAMPLING_DOWN_FACTOR		(1)
 #define BOOSTED_SAMPLING_DOWN_FACTOR		(10)
-#define MAX_SAMPLING_DOWN_FACTOR		(3)
+#define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(5)
-#define MICRO_FREQUENCY_UP_THRESHOLD		(85)
+#define MICRO_FREQUENCY_UP_THRESHOLD		(70)
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(5000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
@@ -48,8 +47,8 @@
 #define FREQ_STEP				(55)
 #define DEFAULT_FREQ_BOOST_TIME			(500000)
 #define MAX_FREQ_BOOST_TIME			(5000000)
-#define UP_THRESHOLD_AT_MIN_FREQ		(65)
-#define FREQ_FOR_RESPONSIVENESS			(702000)
+#define UP_THRESHOLD_AT_MIN_FREQ		(40)
+#define FREQ_FOR_RESPONSIVENESS			(2265600)
 
 static u64 hyper_freq_boosted_time;
 
@@ -66,10 +65,10 @@ static u64 hyper_freq_boosted_time;
 #define MIN_SAMPLING_RATE_RATIO			(2)
 
 static unsigned int min_sampling_rate;
-#define DEFAULT_SAMPLING_RATE			(80000)
-#define BOOSTED_SAMPLING_RATE			(40000)
+#define DEFAULT_SAMPLING_RATE			(40000)
+#define BOOSTED_SAMPLING_RATE			(20000)
 #define LATENCY_MULTIPLIER			(1000)
-#define MIN_LATENCY_MULTIPLIER			(100)
+#define MIN_LATENCY_MULTIPLIER			(20)
 #define TRANSITION_LATENCY_LIMIT		(10 * 1000 * 1000)
 
 /* have the timer rate booted for this much time 4s*/
@@ -85,8 +84,8 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 #ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_HYPER
 static
 #endif
-struct cpufreq_governor cpufreq_gov_HYPER = {
-       .name                   = "HYPER",
+struct cpufreq_governor cpufreq_gov_hyper = {
+       .name                   = "hyper",
        .governor               = cpufreq_governor_dbs,
        .max_transition_latency = TRANSITION_LATENCY_LIMIT,
        .owner                  = THIS_MODULE,
@@ -96,11 +95,11 @@ struct cpufreq_governor cpufreq_gov_HYPER = {
 enum {DBS_NORMAL_SAMPLE, DBS_SUB_SAMPLE};
 
 struct cpu_dbs_info_s {
-	u64 prev_cpu_idle;
-	u64 prev_cpu_iowait;
-	u64 prev_cpu_wall;
+	cputime64_t prev_cpu_idle;
+	cputime64_t prev_cpu_iowait;
+	cputime64_t prev_cpu_wall;
 	unsigned int prev_cpu_wall_delta;
-	u64 prev_cpu_nice;
+	cputime64_t prev_cpu_nice;
 	struct cpufreq_policy *cur_policy;
 	struct delayed_work work;
 	struct cpufreq_frequency_table *freq_table;
@@ -141,8 +140,6 @@ static struct dbs_tuners {
 	unsigned int boosted;
 	unsigned int freq_boost_time;
 	unsigned int boostfreq;
-	/*struct notifier_block dvfs_lat_qos_db;
-	unsigned int dvfs_lat_qos_wants;*/
 	unsigned int freq_step;
 	unsigned int freq_responsiveness;
 
@@ -155,14 +152,14 @@ static struct dbs_tuners {
 	.ignore_nice = 0,
 	.powersave_bias = 0,
 	.freq_boost_time = DEFAULT_FREQ_BOOST_TIME,
-	.boostfreq = 1458000,
+	.boostfreq = 2265600,
 	.freq_step = FREQ_STEP,
 	.freq_responsiveness = FREQ_FOR_RESPONSIVENESS
 };
 
 static unsigned int dbs_enable = 0;	/* number of CPUs using this policy */
 
-static inline u64 get_cpu_iowait_time(unsigned int cpu, u64 *wall)
+static inline cputime64_t get_cpu_iowait_time(unsigned int cpu, cputime64_t *wall)
 {
 	u64 iowait_time = get_cpu_iowait_time_us(cpu, wall);
 
@@ -180,10 +177,6 @@ static unsigned int effective_sampling_rate(void)
 {
 	unsigned int effective;
 
-	/*if (dbs_tuners_ins.dvfs_lat_qos_wants)
-		effective = min(dbs_tuners_ins.dvfs_lat_qos_wants,
-				dbs_tuners_ins.sampling_rate);
-	else*/
 		effective = dbs_tuners_ins.sampling_rate;
 
 	return max(effective, min_sampling_rate);
@@ -606,11 +599,11 @@ static ssize_t store_freq_responsiveness(struct kobject *a, struct attribute *b,
 	if (ret != 1)
 		return -EINVAL;
 
-	if (input > 1512000)
-		input = 1512000;
+	if (input > 2803200)
+		input = 2803200;
 
-	if (input < 300000)
-		input = 300000;
+	if (input < 96000)
+		input = 96000;
 
 	dbs_tuners_ins.freq_responsiveness = input;
 
@@ -651,7 +644,7 @@ static struct attribute *dbs_attributes[] = {
 
 static struct attribute_group dbs_attr_group = {
 	.attrs = dbs_attributes,
-	.name = "HYPER",
+	.name = "hyper",
 };
 
 /************************** sysfs end ************************/
@@ -719,7 +712,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	max_load_freq = 0;
 
 	for_each_cpu(j, policy->cpus) {
-		u64 cur_wall_time, cur_idle_time, cur_iowait_time;
+		cputime64_t cur_wall_time, cur_idle_time, cur_iowait_time;
 		unsigned int idle_time, wall_time, iowait_time;
 		unsigned int load_freq;
 		int freq_avg;
@@ -792,7 +785,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			continue;
 
 		/*
-		 * For the purpose of HYPER, waiting for disk IO is an
+		 * For the purpose of hyper, waiting for disk IO is an
 		 * indication that you're performance critical, and not that
 		 * the system is actually idle. So subtract the iowait time
 		 * from the cpu idle time.
@@ -816,7 +809,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 		/* calculate the scaled load across CPU */
 		load_at_max_freq += (cur_load * policy->cur) /
-					policy->max;
+					policy->cpuinfo.max_freq;
 
 		avg_load_at_max_freq += ((load_at_max_freq +
 				j_dbs_info->load_at_prev_sample) / 2);
@@ -968,7 +961,6 @@ static inline void dbs_timer_exit(struct cpu_dbs_info_s *dbs_info)
 	cancel_delayed_work_sync(&dbs_info->work);
 }
 
-
 /*
  * Not all CPUs want IO time to be accounted as busy; this dependson how
  * efficient idling at a higher frequency/voltage is.
@@ -1064,11 +1056,6 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
-#ifdef CONFIG_MACH_LGE
-		/* If device is being removed, skip set limits */
-		if (!this_dbs_info->cur_policy)
-			break;
-#endif
 		mutex_lock(&this_dbs_info->timer_mutex);
 		if (policy->max < this_dbs_info->cur_policy->cur)
 			__cpufreq_driver_target(this_dbs_info->cur_policy,
@@ -1084,37 +1071,9 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 	return 0;
 }
 
-/**
- * qos_dvfs_lat_notify - PM QoS Notifier for DVFS_LATENCY QoS Request
- * @nb		notifier block struct
- * @value	QoS value
- * @dummy
- */
-/*static int qos_dvfs_lat_notify(struct notifier_block *nb, unsigned long value,
-			       void *dummy)
-{*/
-	/*
-	 * In the worst case, with a continuous up-treshold + e cpu load
-	 * from up-threshold - e load, the ondemand governor will react
-	 * sampling_rate * 2.
-	 *
-	 * Thus, based on the worst case scenario, we use value / 2;
-	 */
-/*	dbs_tuners_ins.dvfs_lat_qos_wants = value / 2;*/
-
-	/* Update sampling rate */
-/*	update_sampling_rate(0);
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block hyper_qos_dvfs_lat_nb = {
-	.notifier_call = qos_dvfs_lat_notify,
-};*/
-
 static int __init cpufreq_gov_dbs_init(void)
 {
-	u64 wall;
+	cputime64_t wall;
 	u64 idle_time;
 	int cpu = get_cpu();
 	int err = 0;
@@ -1138,15 +1097,8 @@ static int __init cpufreq_gov_dbs_init(void)
 			MIN_SAMPLING_RATE_RATIO * jiffies_to_usecs(10);
 	}
 
-	/*err = pm_qos_add_notifier(PM_QOS_DVFS_RESPONSE_LATENCY,
-			    &hyper_qos_dvfs_lat_nb);
-	if (err)
-		goto error_reg;*/
-
-	err = cpufreq_register_governor(&cpufreq_gov_HYPER);
+	err = cpufreq_register_governor(&cpufreq_gov_hyper);
 	if (err) {
-		/*pm_qos_remove_notifier(PM_QOS_DVFS_RESPONSE_LATENCY,
-				       &hyper_qos_dvfs_lat_nb);*/
 		goto error_reg;
 	}
 
@@ -1158,16 +1110,13 @@ error_reg:
 
 static void __exit cpufreq_gov_dbs_exit(void)
 {
-	/*pm_qos_remove_notifier(PM_QOS_DVFS_RESPONSE_LATENCY,
-			       &hyper_qos_dvfs_lat_nb);*/
-
-	cpufreq_unregister_governor(&cpufreq_gov_HYPER);
+	cpufreq_unregister_governor(&cpufreq_gov_hyper);
 	kfree(&dbs_tuners_ins);
 }
 
 MODULE_AUTHOR("Venkatesh Pallipadi <venkatesh.pallipadi@intel.com>");
 MODULE_AUTHOR("Alexey Starikovskiy <alexey.y.starikovskiy@intel.com>");
-MODULE_DESCRIPTION("'cpufreq_HYPER' - A dynamic cpufreq governor for "
+MODULE_DESCRIPTION("'cpufreq_hyper' - A dynamic cpufreq governor for "
 	"Low Latency Frequency Transition capable processors");
 MODULE_LICENSE("GPL");
 
