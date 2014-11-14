@@ -24,6 +24,8 @@ obj-$(CONFIG_CPU_FREQ_GOV_DARKNESS)	+= cpufreq_darkness.o
 obj-$(CONFIG_CPU_FREQ_GOV_DANCEDANCE)	+= cpufreq_dancedance.o
 obj-$(CONFIG_CPU_FREQ_GOV_ZZMOOVE) 	+= cpufreq_zzmoove.o
 obj-$(CONFIG_CPU_FREQ_GOV_ALUCARD) 	+= cpufreq_alucard.o
+obj-$(CONFIG_CPU_FREQ_GOV_ONDEMANDPLUS) += cpufreq_ondemandplus.o
+obj-$(CONFIG_CPU_FREQ_GOV_OPTIMAX) 	+= cpufreq_optimax.o
 
 
 # CPUfreq cross-arch helpers
