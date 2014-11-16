@@ -49,8 +49,6 @@ struct hotplug_cpuinfo {
 
 static DEFINE_PER_CPU(struct hotplug_cpuinfo, od_hotplug_cpuinfo);
 
-static struct workqueue_struct *alucardhp_wq;
-
 static struct delayed_work alucard_hotplug_work;
 
 static struct hotplug_tuners {
@@ -243,7 +241,7 @@ static void __ref hotplug_work_fn(struct work_struct *work)
 			check_up = (pcpu_info->cur_up_rate % pcpu_info->up_rate == 0);
 			check_down = (pcpu_info->cur_down_rate % pcpu_info->down_rate == 0);
 
-			if (cpu > 0
+			if (cpu > 0 
 				&& ((online_cpus - offline_cpu) > upmaxcoreslimit)) {
 					hotplug_onoff[cpu] = OFF;
 					pcpu_info->cur_up_rate = 1;
@@ -271,8 +269,8 @@ static void __ref hotplug_work_fn(struct work_struct *work)
 				&& upcpu < upmaxcoreslimit
 				&& (!cpu_online(upcpu))
 				&& (online_cpus + online_cpu) < upmaxcoreslimit
-			    && cur_load >= pcpu_info->up_load
-				&& cur_freq >= pcpu_info->up_freq
+ 			    && cur_load >= pcpu_info->up_load 
+				&& cur_freq >= pcpu_info->up_freq 
 				&& rq_avg > pcpu_info->up_rq) {
 					++pcpu_info->cur_up_rate;
 					if (check_up) {
@@ -285,19 +283,19 @@ static void __ref hotplug_work_fn(struct work_struct *work)
 						++online_cpu;
 					}
 			} else if (cpu >= min_cpus_online
-						&& (cur_load < pcpu_info->down_load
-						|| (cur_freq <= pcpu_info->down_freq
-						&& rq_avg <= pcpu_info->down_rq))) {
-				++pcpu_info->cur_down_rate;
-				if (check_down) {
+					   && (cur_load < pcpu_info->down_load 
+						   || (cur_freq <= pcpu_info->down_freq
+						       && rq_avg <= pcpu_info->down_rq))) {
+							++pcpu_info->cur_down_rate;
+							if (check_down) {
 #if 0
-					pr_info("CPU[%u], cur_freq[%u], cur_load[%u], rq_avg[%u], down_rate[%u]\n", cpu, cur_freq, cur_load, rq_avg, pcpu_info->cur_down_rate);
+								pr_info("CPU[%u], cur_freq[%u], cur_load[%u], rq_avg[%u], down_rate[%u]\n", cpu, cur_freq, cur_load, rq_avg, pcpu_info->cur_down_rate);
 #endif
-					hotplug_onoff[cpu] = OFF;
-					pcpu_info->cur_up_rate = 1;
-					pcpu_info->cur_down_rate = 1;
-					++offline_cpu;
-				}
+								hotplug_onoff[cpu] = OFF;
+								pcpu_info->cur_up_rate = 1;
+								pcpu_info->cur_down_rate = 1;
+								++offline_cpu;
+							}
 			} else {
 				pcpu_info->cur_up_rate = 1;
 				pcpu_info->cur_down_rate = 1;
@@ -328,7 +326,7 @@ static void __ref hotplug_work_fn(struct work_struct *work)
 		delay -= jiffies % delay;
 	}
 */
-	queue_delayed_work_on(0, alucardhp_wq, &alucard_hotplug_work,
+	queue_delayed_work_on(0, system_wq, &alucard_hotplug_work,
 							  delay);
 }
 
@@ -340,7 +338,7 @@ static void __ref alucard_hotplug_early_suspend(struct early_suspend *handler)
 #endif
 {
 	if (hotplug_tuners_ins.hotplug_enable > 0
-		&& hotplug_tuners_ins.hotplug_suspend == 1) {
+		&& hotplug_tuners_ins.hotplug_suspend == 1) { 
 			mutex_lock(&hotplug_tuners_ins.alu_hotplug_mutex);
 			hotplug_tuners_ins.suspended = true;
 			mutex_unlock(&hotplug_tuners_ins.alu_hotplug_mutex);
@@ -383,16 +381,8 @@ static int hotplug_start(void)
 	unsigned int cpu;
 	int ret = 0;
 
-	alucardhp_wq = alloc_workqueue("alucardhp_wq", WQ_HIGHPRI, 0);
-
-	if (!alucardhp_wq) {
-		printk(KERN_ERR "Failed to create alucard hotplug workqueue\n");
-		return -EFAULT;
-	}
-
 	ret = init_rq_avg();
 	if (ret) {
-		destroy_workqueue(alucardhp_wq);
 		return ret;
 	}
 
@@ -417,7 +407,7 @@ static int hotplug_start(void)
 
 	init_rq_avg_stats();
 	INIT_DELAYED_WORK(&alucard_hotplug_work, hotplug_work_fn);
-	queue_delayed_work_on(0, alucardhp_wq, &alucard_hotplug_work,
+	queue_delayed_work_on(0, system_wq, &alucard_hotplug_work,
 						msecs_to_jiffies(hotplug_tuners_ins.hotplug_sampling_rate));
 
 #if defined(CONFIG_POWERSUSPEND) || \
@@ -450,8 +440,6 @@ static void hotplug_stop(void)
 	cancel_delayed_work_sync(&alucard_hotplug_work);
 
 	exit_rq_avg();
-
-	destroy_workqueue(alucardhp_wq);
 }
 
 #define show_one(file_name, object)					\
@@ -516,14 +504,14 @@ static ssize_t store_##file_name		\
 	const char *buf, size_t count)					\
 {									\
 	unsigned int input;						\
-	struct hotplug_cpuinfo *pcpu_info;		\
+	struct hotplug_cpuinfo *pcpu_info; 		\
 	int ret;									\
 													\
 	ret = sscanf(buf, "%u", &input);					\
 	if (ret != 1)											\
 		return -EINVAL;										\
 																\
-	pcpu_info = &per_cpu(od_hotplug_cpuinfo, num_core - 1);		\
+	pcpu_info = &per_cpu(od_hotplug_cpuinfo, num_core - 1); 	\
 															\
 	if (input == pcpu_info->var_name) {		\
 		return count;						\
