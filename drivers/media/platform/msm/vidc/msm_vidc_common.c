@@ -14,7 +14,6 @@
 #include <linux/jiffies.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-#include <linux/workqueue.h>
 #include <asm/div64.h>
 #include <mach/subsystem_restart.h>
 
@@ -1561,43 +1560,6 @@ void msm_comm_scale_clocks_and_bus(struct msm_vidc_inst *inst)
 	}
 }
 
-static int msm_comm_unset_ocmem(struct msm_vidc_core *core)
-{
-	int rc = 0;
-	struct hfi_device *hdev;
-
-	if (!core || !core->device) {
-		dprintk(VIDC_ERR, "%s invalid parameters", __func__);
-		return -EINVAL;
-	}
-	hdev = core->device;
-
-	if (core->state == VIDC_CORE_INVALID) {
-		dprintk(VIDC_ERR,
-				"Core is in bad state. Cannot unset ocmem\n");
-		return -EIO;
-	}
-
-	init_completion(
-		&core->completions[SYS_MSG_INDEX(RELEASE_RESOURCE_DONE)]);
-
-	rc = call_hfi_op(hdev, unset_ocmem, hdev->hfi_device_data);
-	if (rc) {
-		dprintk(VIDC_INFO, "Failed to unset OCMEM on driver\n");
-		goto release_ocmem_failed;
-	}
-	rc = wait_for_completion_timeout(
-		&core->completions[SYS_MSG_INDEX(RELEASE_RESOURCE_DONE)],
-		msecs_to_jiffies(msm_vidc_hw_rsp_timeout));
-	if (!rc) {
-		dprintk(VIDC_ERR, "%s: Wait interrupted or timeout: %d\n",
-			__func__, SYS_MSG_INDEX(RELEASE_RESOURCE_DONE));
-		rc = -EIO;
-	}
-release_ocmem_failed:
-	return rc;
-}
-
 static int msm_comm_init_core_done(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core = inst->core;
@@ -1661,6 +1623,7 @@ static int msm_comm_init_core(struct msm_vidc_inst *inst)
 			goto fail_load_fw;
 		}
 		core->state = VIDC_CORE_LOADED;
+		dprintk(VIDC_DBG, "Firmware downloaded\n");
 	}
 	mutex_unlock(&core->lock);
 
@@ -1698,7 +1661,6 @@ fail_scale_bus:
 
 static int msm_vidc_deinit_core(struct msm_vidc_inst *inst)
 {
-	int rc = 0;
 	struct msm_vidc_core *core;
 	struct hfi_device *hdev;
 
@@ -1722,38 +1684,27 @@ static int msm_vidc_deinit_core(struct msm_vidc_inst *inst)
 
 	mutex_lock(&core->lock);
 	if (list_empty(&core->instances)) {
-		if (core->state > VIDC_CORE_INIT) {
-			if (core->resources.ocmem_size) {
-				if (inst->state != MSM_VIDC_CORE_INVALID)
-					msm_comm_unset_ocmem(core);
-				call_hfi_op(hdev, free_ocmem,
-						hdev->hfi_device_data);
-			}
-			dprintk(VIDC_DBG, "Calling vidc_hal_core_release\n");
-			rc = call_hfi_op(hdev, core_release,
-					hdev->hfi_device_data);
-			if (rc) {
-				dprintk(VIDC_ERR,
-					"Failed to release core, id = %d\n",
-					core->id);
-				goto exit;
-			}
-		}
+		cancel_delayed_work(&core->fw_unload_work);
 
-		core->state = VIDC_CORE_UNINIT;
+		/*
+		* Delay unloading of firmware. This is useful
+		* in avoiding firmware download delays in cases where we
+		* will have a burst of back to back video playback sessions
+		* e.g. thumbnail generation.
+		*/
+		schedule_delayed_work(&core->fw_unload_work,
+			msecs_to_jiffies(core->state == VIDC_CORE_INVALID ?
+					0 : msm_vidc_firmware_unload_delay));
 
-		call_hfi_op(hdev, unload_fw, hdev->hfi_device_data);
-		if (core->resources.ocmem_size)
-			msm_comm_unvote_buses(core, DDR_MEM|OCMEM_MEM);
-		else
-			msm_comm_unvote_buses(core, DDR_MEM);
+		dprintk(VIDC_DBG, "firmware unload delayed by %u ms\n",
+			core->state == VIDC_CORE_INVALID ?
+			0 : msm_vidc_firmware_unload_delay);
 	}
 
 core_already_uninited:
 	change_inst_state(inst, MSM_VIDC_CORE_UNINIT);
-exit:
 	mutex_unlock(&core->lock);
-	return rc;
+	return 0;
 }
 
 int msm_comm_force_cleanup(struct msm_vidc_inst *inst)
@@ -1904,7 +1855,6 @@ static int msm_vidc_load_resources(int flipped_state,
 	int rc = 0;
 	struct hfi_device *hdev;
 	int num_mbs_per_sec = 0;
-	int height, width;
 
 	if (!inst || !inst->core || !inst->core->device) {
 		dprintk(VIDC_ERR, "%s invalid parameters", __func__);
@@ -1941,29 +1891,7 @@ static int msm_vidc_load_resources(int flipped_state,
 						inst, inst->state);
 		goto exit;
 	}
-	if (inst->core->resources.ocmem_size) {
-		height = max(inst->prop.height[CAPTURE_PORT],
-			inst->prop.height[OUTPUT_PORT]);
-		width = max(inst->prop.width[CAPTURE_PORT],
-			inst->prop.width[OUTPUT_PORT]);
-		rc = msm_comm_scale_bus(inst->core, inst->session_type,
-					OCMEM_MEM);
-		if (!rc) {
-			mutex_lock(&inst->core->lock);
-			rc = call_hfi_op(hdev, alloc_ocmem,
-					hdev->hfi_device_data,
-					inst->core->resources.ocmem_size);
-			mutex_unlock(&inst->core->lock);
-			if (rc) {
-				dprintk(VIDC_WARN,
-				"Failed to allocate OCMEM. Performance will be impacted\n");
-				msm_comm_unvote_buses(inst->core, OCMEM_MEM);
-			}
-		} else {
-			dprintk(VIDC_WARN,
-			"Failed to vote for OCMEM BW. Performance will be impacted\n");
-		}
-	}
+
 	rc = call_hfi_op(hdev, session_load_res, (void *) inst->session);
 	if (rc) {
 		dprintk(VIDC_ERR,
@@ -2103,6 +2031,33 @@ static int msm_comm_session_close(int flipped_state,
 	}
 	change_inst_state(inst, MSM_VIDC_CLOSE);
 exit:
+	return rc;
+}
+
+int msm_comm_suspend(int core_id)
+{
+	struct hfi_device *hdev;
+	struct msm_vidc_core *core;
+	int rc = 0;
+
+	core = get_vidc_core(core_id);
+	if (!core) {
+		dprintk(VIDC_ERR,
+			"%s: Failed to find core for core_id = %d\n",
+			__func__, core_id);
+		return -EINVAL;
+	}
+
+	hdev = (struct hfi_device *)core->device;
+	if (!hdev) {
+		dprintk(VIDC_ERR, "%s Invalid device handle\n", __func__);
+		return -EINVAL;
+	}
+
+	rc = call_hfi_op(hdev, suspend, hdev->hfi_device_data);
+	if (rc)
+		dprintk(VIDC_WARN, "Failed to suspend\n");
+
 	return rc;
 }
 
@@ -3670,4 +3625,46 @@ int msm_comm_smem_get_domain_partition(struct msm_vidc_inst *inst,
 	}
 	return msm_smem_get_domain_partition(inst->mem_client, flags,
 			buffer_type, domain_num, partition_num);
+}
+
+void msm_vidc_fw_unload_handler(struct work_struct *work)
+{
+	struct msm_vidc_core *core = NULL;
+	struct hfi_device *hdev = NULL;
+	int rc = 0;
+
+	core = container_of(work, struct msm_vidc_core, fw_unload_work.work);
+	if (!core || !core->device) {
+		dprintk(VIDC_ERR, "%s - invalid work or core handle\n",
+				__func__);
+		return;
+	}
+
+	hdev = core->device;
+
+	mutex_lock(&core->lock);
+	if (list_empty(&core->instances) &&
+		core->state != VIDC_CORE_UNINIT) {
+		if (core->state > VIDC_CORE_INIT) {
+			dprintk(VIDC_DBG, "Calling vidc_hal_core_release\n");
+			rc = call_hfi_op(hdev, core_release,
+					hdev->hfi_device_data);
+			if (rc) {
+				dprintk(VIDC_ERR,
+					"Failed to release core, id = %d\n",
+					core->id);
+				return;
+			}
+		}
+
+		core->state = VIDC_CORE_UNINIT;
+
+		call_hfi_op(hdev, unload_fw, hdev->hfi_device_data);
+		dprintk(VIDC_DBG, "Firmware unloaded\n");
+		if (core->resources.ocmem_size)
+			msm_comm_unvote_buses(core, DDR_MEM|OCMEM_MEM);
+		else
+			msm_comm_unvote_buses(core, DDR_MEM);
+	}
+	mutex_unlock(&core->lock);
 }
