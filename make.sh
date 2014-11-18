@@ -16,7 +16,7 @@ make clean && make mrproper
 
 export ARCH=arm
 export SUBARCH=arm
-make franco_defconfig
+make Tyr_defconfig
 make -j$CPU_JOB_NUM
 echo "End of compiling kernel!"
 
