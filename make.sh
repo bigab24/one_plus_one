@@ -14,6 +14,8 @@ DATE_START=$(date +"%s")
 
 make clean && make mrproper
 
+export LOCALVERSION=~Tyr.Kernel
+export KBUILD_BUILD_VERSION=40
 export ARCH=arm
 export SUBARCH=arm
 make Tyr_defconfig
