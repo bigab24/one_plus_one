@@ -337,17 +337,36 @@ int mdss_mdp_overlay_req_check(struct msm_fb_data_type *mfd,
 	return 0;
 }
 
-static int __mdp_pipe_tune_perf(struct mdss_mdp_pipe *pipe)
+static int __mdp_pipe_tune_perf(struct mdss_mdp_pipe *pipe,
+	u32 flags)
 {
 	struct mdss_data_type *mdata = pipe->mixer->ctl->mdata;
 	struct mdss_mdp_perf_params perf;
 	int rc;
 
-	for (;;) {
-		rc = mdss_mdp_perf_calc_pipe(pipe, &perf, NULL, true);
+	flags |= PERF_CALC_PIPE_APPLY_CLK_FUDGE |
+		PERF_CALC_PIPE_CALC_SMP_SIZE;
 
-		if (!rc && (perf.mdp_clk_rate <= mdata->max_mdp_clk_rate))
-			break;
+	for (;;) {
+		rc = mdss_mdp_perf_calc_pipe(pipe, &perf, NULL,
+			flags);
+
+		if (!rc && (perf.mdp_clk_rate <= mdata->max_mdp_clk_rate)) {
+			rc = mdss_mdp_perf_bw_check_pipe(&perf, pipe);
+			if (!rc) {
+				break;
+			} else if ((rc == -E2BIG) && !pipe->vert_deci) {
+				/*
+				 * if per pipe BW exceeds the limit and user
+				 * has not requested decimation then return
+				 * -E2BIG error back to user else try more
+				 * decimation.
+				 */
+				pr_debug("pipe%d exceeded per pipe BW\n",
+					pipe->num);
+				return rc;
+			}
+		}
 
 		/*
 		 * if decimation is available try to reduce minimum clock rate
@@ -513,6 +532,7 @@ int mdss_mdp_overlay_pipe_setup(struct msm_fb_data_type *mfd,
 	u32 bwc_enabled;
 	u32 rot90;
 	u32 left_lm_w = left_lm_w_from_mfd(mfd);
+	u32 flags = 0;
 
 	if (mdp5_data->ctl == NULL)
 		return -ENODEV;
@@ -793,7 +813,7 @@ int mdss_mdp_overlay_pipe_setup(struct msm_fb_data_type *mfd,
 		}
 	}
 
-	ret = __mdp_pipe_tune_perf(pipe);
+	ret = __mdp_pipe_tune_perf(pipe, flags);
 	if (ret) {
 		pr_debug("unable to satisfy performance. ret=%d\n", ret);
 		goto exit_fail;

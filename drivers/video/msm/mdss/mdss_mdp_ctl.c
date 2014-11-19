@@ -82,12 +82,14 @@ struct mdss_mdp_prefill_params {
 	u32 dst_h;
 	u32 dst_y;
 	u32 bpp;
+	u32 pnum;
 	bool is_yuv;
 	bool is_caf;
 	bool is_fbc;
 	bool is_bwc;
 	bool is_tile;
 	bool is_hflip;
+	bool is_cmd;
 };
 
 static inline bool mdss_mdp_perf_is_caf(struct mdss_mdp_pipe *pipe)
@@ -132,35 +134,80 @@ static inline u32 mdss_mdp_calc_y_scaler_bytes(struct mdss_mdp_prefill_params
 	return y_scaler_bytes;
 }
 
-static inline u32 mdss_mdp_calc_latency_buf_bytes(struct mdss_mdp_prefill_params
-	*params, struct mdss_prefill_data *prefill)
+static inline u32 mdss_mdp_align_latency_buf_bytes(
+		u32 latency_buf_bytes, u32 percentage,
+		u32 smp_bytes)
 {
-	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
-	u32 latency_lines, latency_buf_bytes;
+	u32 aligned_bytes;
 
-	if (params->is_yuv) {
-		if (params->is_bwc) {
+	aligned_bytes = ((smp_bytes - latency_buf_bytes) * percentage) / 100;
+
+	pr_debug("percentage=%d, extra_bytes(per)=%d smp_bytes=%d latency=%d\n",
+		percentage, aligned_bytes, smp_bytes, latency_buf_bytes);
+	return latency_buf_bytes + aligned_bytes;
+}
+
+/**
+ * @ mdss_mdp_calc_latency_buf_bytes() -
+ *                             Get the number of bytes for the
+ *                             latency lines.
+ * @is_yuv - true if format is yuv
+ * @is_bwc - true if BWC is enabled
+ * @is_tile - true if it is Tile format
+ * @src_w - source rectangle width
+ * @bpp - Bytes per pixel of source rectangle
+ * @use_latency_buf_percentage - use an extra percentage for
+ *				the latency bytes calculation.
+ *
+ * Return:
+ * The amount of bytes to consider for the latency lines, where:
+ *	If use_latency_buf_percentate is  TRUE:
+ *		Function will return the amount of bytes for the
+ *		latency lines plus a percentage of the
+ *		additional bytes allocated to align with the
+ *		SMP size. Percentage is determined by
+ *		"latency_buff_per", which can be modified
+ *		through debugfs.
+ *	If use_latency_buf_percentage is FALSE:
+ *		Function will return only the the amount of bytes
+ *		for the latency lines without any
+ *		extra bytes.
+ */
+u32 mdss_mdp_calc_latency_buf_bytes(bool is_yuv, bool is_bwc,
+	bool is_tile, u32 src_w, u32 bpp, bool use_latency_buf_percentage,
+	u32 smp_bytes)
+{
+	u32 latency_lines, latency_buf_bytes;
+	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
+
+	if (is_yuv) {
+		if (is_bwc) {
 			latency_lines = 4;
-			latency_buf_bytes = params->src_w * params->bpp *
+			latency_buf_bytes = src_w * bpp *
 				latency_lines;
 		} else {
 			latency_lines = 2;
-			latency_buf_bytes = ALIGN(params->src_w * params->bpp *
-				latency_lines, mdata->smp_mb_size) * 2;
+			/* multiply * 2 for the two YUV planes */
+			latency_buf_bytes = mdss_mdp_align_latency_buf_bytes(
+				src_w * bpp * latency_lines,
+				use_latency_buf_percentage ?
+				mdata->latency_buff_per : 0, smp_bytes) * 2;
 		}
 	} else {
-		if (params->is_tile) {
+		if (is_tile) {
 			latency_lines = 8;
-			latency_buf_bytes = params->src_w * params->bpp *
+			latency_buf_bytes = src_w * bpp *
 				latency_lines;
-		} else if (params->is_bwc) {
+		} else if (is_bwc) {
 			latency_lines = 4;
-			latency_buf_bytes = params->src_w * params->bpp *
+			latency_buf_bytes = src_w * bpp *
 				latency_lines;
 		} else {
 			latency_lines = 2;
-			latency_buf_bytes = ALIGN(params->src_w * params->bpp *
-				latency_lines, mdata->smp_mb_size);
+			latency_buf_bytes = mdss_mdp_align_latency_buf_bytes(
+				src_w * bpp * latency_lines,
+				use_latency_buf_percentage ?
+				mdata->latency_buff_per : 0, smp_bytes);
 		}
 	}
 
@@ -186,14 +233,16 @@ static u32 mdss_mdp_perf_calc_pipe_prefill_video(struct mdss_mdp_prefill_params
 	u32 prefill_bytes;
 	u32 latency_buf_bytes;
 	u32 y_buf_bytes = 0;
-	u32 y_scaler_bytes;
+	u32 y_scaler_bytes = 0;
 	u32 pp_bytes = 0, pp_lines = 0;
 	u32 post_scaler_bytes;
 	u32 fbc_bytes = 0;
 
 	prefill_bytes = prefill->ot_bytes;
 
-	latency_buf_bytes = mdss_mdp_calc_latency_buf_bytes(params, prefill);
+	latency_buf_bytes = mdss_mdp_calc_latency_buf_bytes(params->is_yuv,
+		params->is_bwc, params->is_tile, params->src_w, params->bpp,
+		true, params->smp_bytes);
 	prefill_bytes += latency_buf_bytes;
 	pr_debug("latency_buf_bytes bw_calc=%d actual=%d\n", latency_buf_bytes,
 		params->smp_bytes);
@@ -223,6 +272,10 @@ static u32 mdss_mdp_perf_calc_pipe_prefill_video(struct mdss_mdp_prefill_params
 			params->dst_h, params->src_w, params->dst_w);
 	}
 	prefill_bytes += fbc_bytes;
+
+	trace_mdp_perf_prefill_calc(params->pnum, latency_buf_bytes,
+		prefill->ot_bytes, y_buf_bytes, y_scaler_bytes, pp_lines,
+		pp_bytes, post_scaler_bytes, fbc_bytes, prefill_bytes);
 
 	pr_debug("ot=%d y_buf=%d pp_lines=%d pp=%d post_sc=%d fbc_bytes=%d\n",
 		prefill->ot_bytes, y_buf_bytes, pp_lines, pp_bytes,
@@ -272,8 +325,9 @@ static u32 mdss_mdp_perf_calc_pipe_prefill_cmd(struct mdss_mdp_prefill_params
 		ot_bytes = prefill->ot_bytes;
 		prefill_bytes += ot_bytes;
 
-		latency_buf_bytes = mdss_mdp_calc_latency_buf_bytes(params,
-			prefill);
+		latency_buf_bytes = mdss_mdp_calc_latency_buf_bytes(
+			params->is_yuv, params->is_bwc, params->is_tile,
+			params->src_w, params->bpp, true, params->smp_bytes);
 		prefill_bytes += latency_buf_bytes;
 
 		if (params->is_yuv)
@@ -293,12 +347,97 @@ static u32 mdss_mdp_perf_calc_pipe_prefill_cmd(struct mdss_mdp_prefill_params
 	return prefill_bytes;
 }
 
+u32 mdss_mdp_perf_calc_pipe_prefill_single(struct mdss_mdp_prefill_params
+	*params)
+{
+	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
+	struct mdss_prefill_data *prefill = &mdata->prefill_data;
+	u32 prefill_bytes;
+	u32 latency_lines, latency_buf_bytes;
+	u32 y_scaler_bytes;
+	u32 fbc_cmd_lines = 0, fbc_cmd_bytes = 0;
+
+	if (params->is_bwc || params->is_tile)
+		/* can start processing after receiving 4 lines */
+		latency_lines = 4;
+	else if (!params->is_caf && params->is_hflip)
+		/* need oneline before reading backwards */
+		latency_lines = 1;
+	else
+		latency_lines = 0;
+	latency_buf_bytes = params->src_w * params->bpp * latency_lines;
+	prefill_bytes = latency_buf_bytes;
+
+	y_scaler_bytes = mdss_mdp_calc_y_scaler_bytes(params, prefill);
+	prefill_bytes += y_scaler_bytes;
+
+	if (params->is_cmd)
+		fbc_cmd_lines++;
+	if (params->is_fbc)
+		fbc_cmd_lines++;
+
+	if (fbc_cmd_lines) {
+		fbc_cmd_bytes = params->bpp * params->dst_w * fbc_cmd_lines;
+		fbc_cmd_bytes = mdss_mdp_calc_scaling_w_h(fbc_cmd_bytes,
+			params->src_h, params->dst_h, params->src_w,
+			params->dst_w);
+		prefill_bytes += fbc_cmd_bytes;
+	}
+
+	return prefill_bytes;
+}
+
+u32 mdss_mdp_perf_calc_smp_size(struct mdss_mdp_pipe *pipe,
+	bool calc_smp_size)
+{
+	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
+	u32 smp_bytes;
+
+	/* Get allocated or fixed smp bytes */
+	smp_bytes = mdss_mdp_smp_get_size(pipe);
+
+	/*
+	 * We need to calculate the SMP size for scenarios where
+	 * allocation have not happened yet (i.e. during prepare IOCTL).
+	 */
+	if (calc_smp_size) {
+		u32 calc_smp_total;
+		calc_smp_total = mdss_mdp_smp_calc_num_blocks(pipe);
+		calc_smp_total *= mdata->smp_mb_size;
+
+		/*
+		 * If the pipe has fixed SMPs, then we must consider
+		 * the max smp size.
+		 */
+		if (calc_smp_total > smp_bytes)
+			smp_bytes = calc_smp_total;
+	}
+
+
+	pr_debug("SMP size (bytes) %d for pnum=%d calc=%d\n",
+			 smp_bytes, pipe->num, calc_smp_size);
+	BUG_ON(smp_bytes == 0);
+
+	return smp_bytes;
+}
+
 /**
  * mdss_mdp_perf_calc_pipe() - calculate performance numbers required by pipe
  * @pipe:	Source pipe struct containing updated pipe params
  * @perf:	Structure containing values that should be updated for
  *		performance tuning
- * @apply_fudge:	Boolean to determine if mdp clock fudge is applicable
+ * @flags: flags to determine how to perform some of the
+ *		calculations, supported flags:
+ *
+ *	PERF_CALC_PIPE_APPLY_CLK_FUDGE:
+ *		Determine if mdp clock fudge is applicable.
+ *	PERF_CALC_PIPE_SINGLE_LAYER:
+ *		Indicate if the calculation is for a single pipe staged
+ *		in the layer mixer
+ *	PERF_CALC_PIPE_CALC_SMP_SIZE:
+ *		Indicate if the smp size needs to be calculated, this is
+ *		for the cases where SMP haven't been allocated yet, so we need
+ *		to estimate here the smp size (i.e. PREPARE IOCTL).
  *
  * Function calculates the minimum required performance calculations in order
  * to avoid MDP underflow. The calculations are based on the way MDP
@@ -307,7 +446,7 @@ static u32 mdss_mdp_perf_calc_pipe_prefill_cmd(struct mdss_mdp_prefill_params
  */
 int mdss_mdp_perf_calc_pipe(struct mdss_mdp_pipe *pipe,
 	struct mdss_mdp_perf_params *perf, struct mdss_rect *roi,
-	bool apply_fudge)
+	u32 flags)
 {
 	struct mdss_mdp_mixer *mixer;
 	int fps = DEFAULT_FRAME_RATE;
@@ -315,6 +454,7 @@ int mdss_mdp_perf_calc_pipe(struct mdss_mdp_pipe *pipe,
 	struct mdss_rect src, dst;
 	bool is_fbc = false;
 	struct mdss_mdp_prefill_params prefill_params;
+	bool calc_smp_size = false;
 
 	if (!pipe || !perf || !pipe->mixer)
 		return -EINVAL;
@@ -390,12 +530,19 @@ int mdss_mdp_perf_calc_pipe(struct mdss_mdp_pipe *pipe,
 	}
 	perf->bw_overlap = quota;
 
-	if (apply_fudge)
+	if (flags & PERF_CALC_PIPE_APPLY_CLK_FUDGE)
 		perf->mdp_clk_rate = mdss_mdp_clk_fudge_factor(mixer, rate);
 	else
 		perf->mdp_clk_rate = rate;
 
-	prefill_params.smp_bytes = mdss_mdp_smp_get_size(pipe);
+	if (mixer->ctl->intf_num == MDSS_MDP_NO_INTF) {
+		perf->prefill_bytes = 0;
+		return 0;
+	}
+
+	calc_smp_size = (flags & PERF_CALC_PIPE_CALC_SMP_SIZE) ? true : false;
+	prefill_params.smp_bytes = mdss_mdp_perf_calc_smp_size(pipe,
+			calc_smp_size);
 	prefill_params.xres = xres;
 	prefill_params.src_w = src.w;
 	prefill_params.src_h = src_h;
@@ -409,14 +556,18 @@ int mdss_mdp_perf_calc_pipe(struct mdss_mdp_pipe *pipe,
 	prefill_params.is_bwc = pipe->bwc_mode;
 	prefill_params.is_tile = pipe->src_fmt->tile;
 	prefill_params.is_hflip = pipe->flags & MDP_FLIP_LR;
+	prefill_params.is_cmd = !mixer->ctl->is_video_mode;
+	prefill_params.pnum = pipe->num;
 
-	if (mixer->type == MDSS_MDP_MIXER_TYPE_INTF) {
-		perf->prefill_bytes = (mixer->ctl->is_video_mode) ?
-			mdss_mdp_perf_calc_pipe_prefill_video(&prefill_params) :
-			mdss_mdp_perf_calc_pipe_prefill_cmd(&prefill_params);
-	}
+	if (flags & PERF_CALC_PIPE_SINGLE_LAYER)
+		perf->prefill_bytes =
+			mdss_mdp_perf_calc_pipe_prefill_single(&prefill_params);
+	else if (!prefill_params.is_cmd)
+		perf->prefill_bytes =
+			mdss_mdp_perf_calc_pipe_prefill_video(&prefill_params);
 	else
-		perf->prefill_bytes = 0;
+		perf->prefill_bytes =
+			mdss_mdp_perf_calc_pipe_prefill_cmd(&prefill_params);
 
 	pr_debug("mixer=%d pnum=%d clk_rate=%u bw_overlap=%llu prefill=%d\n",
 		 mixer->num, pipe->num, perf->mdp_clk_rate, perf->bw_overlap,
@@ -437,7 +588,8 @@ static inline int cmpu32(const void *a, const void *b)
 
 static void mdss_mdp_perf_calc_mixer(struct mdss_mdp_mixer *mixer,
 		struct mdss_mdp_perf_params *perf,
-		struct mdss_mdp_pipe **pipe_list, int num_pipes)
+		struct mdss_mdp_pipe **pipe_list, int num_pipes,
+		u32 flags)
 {
 	struct mdss_mdp_pipe *pipe;
 	struct mdss_panel_info *pinfo = NULL;
@@ -515,6 +667,11 @@ static void mdss_mdp_perf_calc_mixer(struct mdss_mdp_mixer *mixer,
 		}
 	}
 
+	if (apply_fudge)
+		flags |= PERF_CALC_PIPE_APPLY_CLK_FUDGE;
+	if (num_pipes == 1)
+		flags |= PERF_CALC_PIPE_SINGLE_LAYER;
+
 	for (i = 0; i < num_pipes; i++) {
 		struct mdss_mdp_perf_params tmp;
 		pipe = pipe_list[i];
@@ -522,7 +679,7 @@ static void mdss_mdp_perf_calc_mixer(struct mdss_mdp_mixer *mixer,
 			continue;
 
 		if (mdss_mdp_perf_calc_pipe(pipe, &tmp, &mixer->roi,
-			apply_fudge))
+			flags))
 			continue;
 		prefill_bytes += tmp.prefill_bytes;
 		bw_overlap[i] = tmp.bw_overlap;
@@ -619,7 +776,8 @@ static u32 mdss_mdp_get_vbp_factor_max(struct mdss_mdp_ctl *ctl)
 static void __mdss_mdp_perf_calc_ctl_helper(struct mdss_mdp_ctl *ctl,
 		struct mdss_mdp_perf_params *perf,
 		struct mdss_mdp_pipe **left_plist, int left_cnt,
-		struct mdss_mdp_pipe **right_plist, int right_cnt)
+		struct mdss_mdp_pipe **right_plist, int right_cnt,
+		u32 flags)
 {
 	struct mdss_mdp_perf_params tmp;
 
@@ -627,7 +785,7 @@ static void __mdss_mdp_perf_calc_ctl_helper(struct mdss_mdp_ctl *ctl,
 
 	if (ctl->mixer_left) {
 		mdss_mdp_perf_calc_mixer(ctl->mixer_left, &tmp,
-				left_plist, left_cnt);
+				left_plist, left_cnt, flags);
 		perf->bw_overlap += tmp.bw_overlap;
 		perf->prefill_bytes += tmp.prefill_bytes;
 		perf->mdp_clk_rate = tmp.mdp_clk_rate;
@@ -635,7 +793,7 @@ static void __mdss_mdp_perf_calc_ctl_helper(struct mdss_mdp_ctl *ctl,
 
 	if (ctl->mixer_right) {
 		mdss_mdp_perf_calc_mixer(ctl->mixer_right, &tmp,
-				right_plist, right_cnt);
+				right_plist, right_cnt, flags);
 		perf->bw_overlap += tmp.bw_overlap;
 		perf->prefill_bytes += tmp.prefill_bytes;
 		if (tmp.mdp_clk_rate > perf->mdp_clk_rate)
@@ -684,7 +842,8 @@ int mdss_mdp_perf_bw_check(struct mdss_mdp_ctl *ctl,
 		return 0;
 
 	__mdss_mdp_perf_calc_ctl_helper(ctl, &perf,
-			left_plist, left_cnt, right_plist, right_cnt);
+			left_plist, left_cnt, right_plist, right_cnt,
+			PERF_CALC_PIPE_CALC_SMP_SIZE);
 
 	/* convert bandwidth to kb */
 	bw = DIV_ROUND_UP_ULL(perf.bw_ctl, 1000);
@@ -693,6 +852,39 @@ int mdss_mdp_perf_bw_check(struct mdss_mdp_ctl *ctl,
 	threshold = ctl->is_video_mode ? mdata->max_bw_low : mdata->max_bw_high;
 	if (bw > threshold) {
 		pr_debug("exceeds bandwidth: %ukb > %ukb\n", bw, threshold);
+		return -E2BIG;
+	}
+
+	return 0;
+}
+
+int mdss_mdp_perf_bw_check_pipe(struct mdss_mdp_perf_params *perf,
+		struct mdss_mdp_pipe *pipe)
+{
+	struct mdss_data_type *mdata = pipe->mixer->ctl->mdata;
+	struct mdss_mdp_ctl *ctl = pipe->mixer->ctl;
+	u32 vbp_fac, threshold;
+	u64 prefill_bw, pipe_bw;
+
+	/* we only need bandwidth check on real-time clients (interfaces) */
+	if (ctl->intf_type == MDSS_MDP_NO_INTF)
+		return 0;
+
+	vbp_fac = mdss_mdp_get_vbp_factor_max(ctl);
+	prefill_bw = perf->prefill_bytes * vbp_fac;
+	pipe_bw = max(prefill_bw, perf->bw_overlap);
+	pr_debug("prefill=%llu, vbp_fac=%u, overlap=%llu\n",
+			prefill_bw, vbp_fac, perf->bw_overlap);
+
+	/* convert bandwidth to kb */
+	pipe_bw = DIV_ROUND_UP_ULL(pipe_bw, 1000);
+
+	threshold = mdata->max_bw_per_pipe;
+	pr_debug("bw=%llu threshold=%u\n", pipe_bw, threshold);
+
+	if (threshold && pipe_bw > threshold) {
+		pr_debug("pipe exceeds bandwidth: %llukb > %ukb\n", pipe_bw,
+				threshold);
 		return -E2BIG;
 	}
 
@@ -709,7 +901,7 @@ static void mdss_mdp_perf_calc_ctl(struct mdss_mdp_ctl *ctl,
 
 	__mdss_mdp_perf_calc_ctl_helper(ctl, perf,
 			left_plist, (left_plist ? MDSS_MDP_MAX_STAGE : 0),
-			right_plist, (right_plist ? MDSS_MDP_MAX_STAGE : 0));
+			right_plist, (right_plist ? MDSS_MDP_MAX_STAGE : 0), 0);
 
 	if (ctl->is_video_mode) {
 		perf->bw_ctl =
