@@ -14,8 +14,9 @@ DATE_START=$(date +"%s")
 
 make clean && make mrproper
 
+VER_NR=40
 export LOCALVERSION=~Tyr.Kernel
-export KBUILD_BUILD_VERSION=40
+export KBUILD_BUILD_VERSION=$VER_NR
 export ARCH=arm
 export SUBARCH=arm
 make Tyr_defconfig
@@ -26,4 +27,21 @@ DATE_END=$(date +"%s")
 echo
 DIFF=$(($DATE_END - $DATE_START))
 echo "Build completed in $(($DIFF / 60)) minute(s) and $(($DIFF % 60)) seconds."
-./build.sh
+
+if [ $# -gt 0 ]; then
+echo $1 > .version
+fi
+make -j6
+../ramdisk_one_plus_one/dtbToolCM -2 -o ../ramdisk_one_plus_one/split_img/boot.img-dtb -s 2048 -p ../one_plus_one/scripts/dtc/ ../one_plus_one/arch/arm/boot/
+cp arch/arm/boot/zImage ../ramdisk_one_plus_one/split_img/boot.img-zImage
+cd ../ramdisk_one_plus_one/
+./repackimg.sh
+cd ../one_plus_one/
+zipfile="TyrV$VER_NR.zip"
+echo "making zip file"
+cp ../ramdisk_one_plus_one/image-new.img zip/boot.img
+cd zip/
+rm -f *.zip
+zip -r -9 $zipfile *
+rm -f /tmp/*.zip
+cp *.zip /tmp
