@@ -14,7 +14,7 @@ DATE_START=$(date +"%s")
 
 make clean && make mrproper
 
-VER_NR=44
+VER_NR=45
 export LOCALVERSION=~Tyr.Kernel-CM12
 export KBUILD_BUILD_VERSION=$VER_NR
 export ARCH=arm
