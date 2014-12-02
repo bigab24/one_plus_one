@@ -243,10 +243,14 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 	  else if [ -x /bin/bash ]; then echo /bin/bash; \
 	  else echo sh; fi ; fi)
 
+GRAPHITE_FLAGS = -fgraphite -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
+
 HOSTCC       = gcc
 HOSTCXX      = g++
 HOSTCFLAGS = -Wall -Wmissing-prototypes -Wstrict-prototypes -Ofast -fomit-frame-pointer -fgcse-las -fgraphite -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block -std=gnu89
 HOSTCXXFLAGS = -Ofast -fgcse-las -fgraphite -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block 
+HOSTCFLAGS += $(GRAPHITE_FLAGS)
+HOSTCXXFLAGS += $(GRAPHITE_FLAGS)
 
 ifeq ($(shell $(HOSTCC) -v 2>&1 | grep -c "clang version"), 1)
 HOSTCFLAGS += -Wno-unused-value -Wno-unused-parameter \
@@ -345,6 +349,7 @@ AS		= $(CROSS_COMPILE)as
 LD		= $(CROSS_COMPILE)ld
 CC		= $(CROSS_COMPILE)gcc
 CPP		= $(CC) -E
+CPP 	       += $(GRAPHITE_FLAGS)
 AR		= $(CROSS_COMPILE)ar
 NM		= $(CROSS_COMPILE)nm
 STRIP		= $(CROSS_COMPILE)strip
@@ -371,6 +376,8 @@ LDFLAGS_MODULE = -T $(srctree)/scripts/module-common.lds
 CFLAGS_KERNEL = $(KERNELFLAGS)
 AFLAGS_KERNEL = $(KERNELFLAGS)
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
+CFLAGS_KERNEL += $(GRAPHITE_FLAGS)
+CFLAGS_MODULE += $(GRAPHITE_FLAGS)
 
 
 # Use LINUXINCLUDE when you must reference the include/ directory.
@@ -393,7 +400,7 @@ KBUILD_CFLAGS   := -Wall -DNDEBUG -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block -floop-flatten  \
 		   -Wno-format-security \
 
-
+KBUILD_CFLAGS += $(GRAPHITE_FLAGS)
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__
