@@ -398,7 +398,7 @@ KBUILD_CFLAGS   := -Wall -DNDEBUG -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fmodulo-sched -fmodulo-sched-allow-regmoves \
 		   -mfpu=neon-vfpv4 -mtune=cortex-a15 -mcpu=cortex-a15 -fgraphite -floop-parallelize-all \
 		   -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block -floop-flatten  \
-		   -Wno-format-security \
+		   -Wno-format-security 
 
 KBUILD_CFLAGS += $(GRAPHITE_FLAGS)
 KBUILD_AFLAGS_KERNEL :=
