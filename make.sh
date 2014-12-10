@@ -14,8 +14,6 @@ DATE_START=$(date +"%s")
 
 make clean && make mrproper
 
-VER_NR=51
-export KBUILD_BUILD_VERSION=$VER_NR
 export ARCH=arm
 export SUBARCH=arm
 make Tyr_defconfig
@@ -36,7 +34,7 @@ cp arch/arm/boot/zImage ../ramdisk_one_plus_one/split_img/boot.img-zImage
 cd ../ramdisk_one_plus_one/
 ./repackimg.sh
 cd ../one_plus_one/
-zipfile="TyrV$VER_NR.zip"
+zipfile="TyrV.zip"
 echo "making zip file"
 cp ../ramdisk_one_plus_one/image-new.img zip/boot.img
 cd zip/
