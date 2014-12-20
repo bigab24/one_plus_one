@@ -388,9 +388,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	cpu_load = loadadjfreq / pcpu->policy->cur;
 	boosted = boost_val || now < boostpulse_endtime;
 
-	cpufreq_notify_utilization(pcpu->policy, cpu_load);
-
-	if (cpu_load >= go_hispeed_load) {
+	if (cpu_load >= go_hispeed_load || boosted) {
 		if (pcpu->policy->cur < hispeed_freq) {
 			new_freq = hispeed_freq;
 		} else {
@@ -415,7 +413,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	}
 
 	if (cpufreq_frequency_table_target(pcpu->policy, pcpu->freq_table,
-					   new_freq, CPUFREQ_RELATION_C,
+					   new_freq, CPUFREQ_RELATION_L,
 					   &index)) {
 		spin_unlock_irqrestore(&pcpu->target_freq_lock, flags);
 		goto rearm;
@@ -1159,6 +1157,9 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 
 	switch (event) {
 	case CPUFREQ_GOV_START:
+		if (!cpu_online(policy->cpu))
+			return -EINVAL;
+
 		mutex_lock(&gov_lock);
 
 		freq_table =
