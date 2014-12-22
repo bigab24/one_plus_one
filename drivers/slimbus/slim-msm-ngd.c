@@ -1482,7 +1482,7 @@ static int __devinit ngd_slim_probe(struct platform_device *pdev)
 	if (slim_mdm) {
 		dev->ext_mdm.nb.notifier_call = mdm_ssr_notify_cb;
 		dev->ext_mdm.ssr = subsys_notif_register_notifier(ext_modem_id,
-							&dev->ext_mdm.nb);
+							&dev->mdm.nb);
 		if (IS_ERR_OR_NULL(dev->ext_mdm.ssr))
 			dev_err(dev->dev,
 				"subsys_notif_register_notifier failed %p",
