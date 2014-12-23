@@ -34,14 +34,14 @@ static struct freq_attr _attr_##_name = {\
 
 #define CPU_FREQ_LEVEL_NUMBER	34
 
-static cputime64_t cpu0_time_in_state[CPU_FREQ_LEVEL_NUMBER] = {0};
+static u64 cpu0_time_in_state[CPU_FREQ_LEVEL_NUMBER] = {0};
 static unsigned int cpu0_total_trans = 0;
-static cputime64_t cpu1_time_in_state[CPU_FREQ_LEVEL_NUMBER] = {0};
+static u64 cpu1_time_in_state[CPU_FREQ_LEVEL_NUMBER] = {0};
 static unsigned int cpu1_total_trans = 0;
 #ifdef CONFIG_QUAD_CORES_SOC_STAT
-static cputime64_t cpu2_time_in_state[CPU_FREQ_LEVEL_NUMBER] = {0};
+static u64 cpu2_time_in_state[CPU_FREQ_LEVEL_NUMBER] = {0};
 static unsigned int cpu2_total_trans = 0;
-static cputime64_t cpu3_time_in_state[CPU_FREQ_LEVEL_NUMBER] = {0};
+static u64 cpu3_time_in_state[CPU_FREQ_LEVEL_NUMBER] = {0};
 static unsigned int cpu3_total_trans = 0;
 #endif
 
