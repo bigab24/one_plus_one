@@ -47,8 +47,8 @@ struct cpufreq_governor cpufreq_gov_darkness = {
 };
 
 struct cpufreq_darkness_cpuinfo {
-	cputime64_t prev_cpu_wall;
-	cputime64_t prev_cpu_idle;
+	u64 prev_cpu_wall;
+	u64 prev_cpu_idle;
 	struct cpufreq_frequency_table *freq_table;
 	struct delayed_work work;
 	struct cpufreq_policy *cur_policy;
