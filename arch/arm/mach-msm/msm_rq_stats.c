@@ -228,7 +228,6 @@ static struct kobj_attribute hotplug_disabled_attr =
 	__ATTR(hotplug_disable, S_IWUSR | S_IRUSR, show_hotplug_disable,
 	       store_hotplug_disable);
 
-#ifdef CONFIG_BRICKED_HOTPLUG
 unsigned int get_rq_info(void)
 {
 	unsigned long flags = 0;
@@ -244,7 +243,6 @@ unsigned int get_rq_info(void)
         return rq;
 }
 EXPORT_SYMBOL(get_rq_info);
-#endif
 
 static void def_work_fn(struct work_struct *work)
 {
