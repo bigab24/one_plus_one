@@ -38,6 +38,7 @@
 #include <linux/hrtimer.h>
 #include <linux/delay.h>
 #include <linux/export.h>
+#include <../mach-msm/msm_rq_stats.c>
 #ifndef CONFIG_MACH_OPPO_MSM8974
 #include <../mach-msm/acpuclock.h>
 #endif
