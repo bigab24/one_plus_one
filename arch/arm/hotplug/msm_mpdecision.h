@@ -68,8 +68,8 @@ enum {
 struct msm_mpdec_cpudata_t {
 	struct mutex hotplug_mutex;
 	int online;
-	cputime64_t on_time;
-	cputime64_t on_time_total;
+	u64 on_time;
+	u64 on_time_total;
 	long long unsigned int times_cpu_hotplugged;
 	long long unsigned int times_cpu_unplugged;
 #ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
@@ -77,7 +77,7 @@ struct msm_mpdec_cpudata_t {
 	struct mutex unboost_mutex;
 	unsigned long int norm_min_freq;
 	unsigned long int boost_freq;
-	cputime64_t boost_until;
+	u64 boost_until;
 	bool is_boosted;
 	bool revib_wq_running;
 #endif

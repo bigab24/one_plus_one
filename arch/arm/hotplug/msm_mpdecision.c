@@ -88,7 +88,7 @@ extern unsigned long acpuclk_get_rate(int);
 
 unsigned int state = MSM_MPDEC_IDLE;
 bool was_paused = false;
-static cputime64_t mpdec_paused_until = 0;
+static u64 mpdec_paused_until = 0;
 
 static unsigned long get_rate(int cpu) {
 #ifdef CONFIG_MACH_OPPO_MSM8974
@@ -155,7 +155,7 @@ static void mpdec_cpu_up(int cpu) {
 EXPORT_SYMBOL_GPL(mpdec_cpu_up);
 
 static void mpdec_cpu_down(int cpu) {
-	cputime64_t on_time = 0;
+	u64 on_time = 0;
 	if (cpu_online(cpu)) {
 		mutex_lock(&per_cpu(msm_mpdec_cpudata, cpu).hotplug_mutex);
 		cpu_down(cpu);
@@ -176,10 +176,10 @@ static int mp_decision(void) {
 	int nr_cpu_online;
 	int index;
 	unsigned int rq_depth;
-	static cputime64_t total_time = 0;
-	static cputime64_t last_time;
-	cputime64_t current_time;
-	cputime64_t this_time = 0;
+	static u64 total_time = 0;
+	static u64 last_time;
+	u64 current_time;
+	u64 this_time = 0;
 
 	if (!msm_mpdec_tuners_ins.enabled)
 		return MSM_MPDEC_DISABLED;
