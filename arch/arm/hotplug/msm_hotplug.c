@@ -20,9 +20,7 @@
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/cpufreq.h>
-#ifdef CONFIG_LCD_NOTIFY
 #include <linux/lcd_notify.h>
-#endif
 #ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
 #endif
