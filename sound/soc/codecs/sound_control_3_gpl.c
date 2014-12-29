@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
+#include <linux/kallsyms.h>
 #include <linux/mfd/wcd9xxx/core.h>
 #include <linux/mfd/wcd9xxx/wcd9320_registers.h>
 
@@ -30,8 +31,8 @@ extern int wcd9xxx_hw_revision;
 static int snd_ctrl_locked = 0;
 static int snd_rec_ctrl_locked = 0;
 
-extern unsigned int taiko_read(struct snd_soc_codec *codec, unsigned int reg);
-extern int taiko_write(struct snd_soc_codec *codec, unsigned int reg,
+unsigned int taiko_read(struct snd_soc_codec *codec, unsigned int reg);
+int taiko_write(struct snd_soc_codec *codec, unsigned int reg,
 		unsigned int value);
 
 #define REG_SZ	25
