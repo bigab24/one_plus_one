@@ -24,9 +24,8 @@
  */
 
 #include "msm_mpdecision.h"
-#ifndef CONFIG_HAS_EARLYSUSPEND
 #include <linux/lcd_notify.h>
-#else
+#ifndef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
 #include <linux/init.h>
@@ -40,7 +39,7 @@
 #include <linux/delay.h>
 #include <linux/export.h>
 #ifndef CONFIG_MACH_OPPO_MSM8974
-#include "acpuclock.h"
+#include <../mach-msm/acpuclock.h>
 #endif
 
 #define DEBUG 0
