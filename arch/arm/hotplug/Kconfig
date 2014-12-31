@@ -24,10 +24,10 @@ config MAKO_HOTPLUG
 	help
 	  easy HOTPLUG driver made by franciscofranco
 
-config MSM_MPDEC
-        bool "Enable kernel based mpdecision"
-        depends on MSM_SMP
-        default n
-        help
-          This enables kernel based multi core control.
-          (up/down hotplug based on load)
+config BRICKED_HOTPLUG
+	bool "Enable kernel based mpdecision"
+	depends on MSM_RUN_QUEUE_STATS
+	default n
+	help
+	 This enables kernel based multi core control.
+	 (up/down hotplug based on load)
