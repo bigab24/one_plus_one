@@ -24,11 +24,12 @@
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/device.h>
+#include <../mach-msm/msm_rq_stats.c>
 
 #define DEBUG 0
 
 #define MPDEC_TAG			"bricked_hotplug"
-#define HOTPLUG_ENABLED			1
+#define HOTPLUG_ENABLED			0
 #define MSM_MPDEC_STARTDELAY		20000
 #define MSM_MPDEC_DELAY			130
 #define DEFAULT_MIN_CPUS_ONLINE		1
@@ -139,10 +140,10 @@ static int mp_decision(void) {
 	int nr_cpu_online;
 	int index;
 	unsigned int rq_depth;
-	static cputime64_t total_time = 0;
-	static cputime64_t last_time;
-	cputime64_t current_time;
-	cputime64_t this_time = 0;
+	static u64 total_time = 0;
+	static u64 last_time;
+	u64 current_time;
+	u64 this_time = 0;
 
 	if (!hotplug.bricked_enabled)
 		return MSM_MPDEC_DISABLED;
