@@ -24,18 +24,12 @@
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/device.h>
-<<<<<<< HEAD:arch/arm/kernel/bricked_hotplug.c
-#include "acpuclock.h"
-#include "msm_rq_stats.c"
-||||||| parent of 0321642... msm: bricked_hotplug: clean get_rate and switch to msm_cpufreq_get_freq
-=======
-#include "acpuclock.h"
->>>>>>> 0321642... msm: bricked_hotplug: clean get_rate and switch to msm_cpufreq_get_freq:arch/arm/mach-msm/bricked_hotplug.c
+#include <../mach-msm/acpuclock.h>
 
 #define DEBUG 0
 
 #define MPDEC_TAG			"bricked_hotplug"
-#define HOTPLUG_ENABLED			0
+#define HOTPLUG_ENABLED			1
 #define MSM_MPDEC_STARTDELAY		20000
 #define MSM_MPDEC_DELAY			130
 #define DEFAULT_MIN_CPUS_ONLINE		1
@@ -43,7 +37,7 @@
 #define DEFAULT_MAX_CPUS_ONLINE_SUSP	1
 #define DEFAULT_SUSPEND_DEFER_TIME	10
 
-#define MSM_MPDEC_IDLE_FREQ		499200
+#define MSM_MPDEC_IDLE_FREQ		422400
 
 enum {
 	MSM_MPDEC_DISABLED = 0,
@@ -87,22 +81,15 @@ static struct cpu_hotplug {
 	.bricked_enabled = HOTPLUG_ENABLED,
 };
 
-static unsigned int NwNs_Threshold[8] = {12, 0, 25, 7, 30, 10, 0, 18};
+static unsigned int NwNs_Threshold[8] = {12, 0, 20, 7, 25, 10, 0, 18};
 static unsigned int TwTs_Threshold[8] = {140, 0, 140, 190, 140, 190, 0, 190};
 
 extern unsigned int get_rq_info(void);
-extern unsigned long acpuclk_get_rate(int);
 
 unsigned int state = MSM_MPDEC_DISABLED;
 
 static unsigned long get_rate(int cpu) {
-<<<<<<< HEAD:arch/arm/kernel/bricked_hotplug.c
-	return acpuclk_get_rate(cpu);
-||||||| parent of 0321642... msm: bricked_hotplug: clean get_rate and switch to msm_cpufreq_get_freq
-	return cpufreq_get(cpu);
-=======
 	return msm_cpufreq_get_freq(cpu);
->>>>>>> 0321642... msm: bricked_hotplug: clean get_rate and switch to msm_cpufreq_get_freq:arch/arm/mach-msm/bricked_hotplug.c
 }
 
 static int get_slowest_cpu(void) {
@@ -203,8 +190,10 @@ static int mp_decision(void) {
 
 	last_time = ktime_to_ms(ktime_get());
 #if DEBUG
-	pr_info(MPDEC_TAG"[DEBUG] rq: %u, new_state: %i | Mask=[%d%d%d%d]\n",
+	pr_info(MPDEC_TAG"[DEBUG MASK] rq: %u, new_state: %i | Mask=[%d%d%d%d]",
 			rq_depth, new_state, cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
+	pr_info(MPDEC_TAG"[DEBUG RATE] CPU0 rate: %lu | CPU1 rate: %lu | CPU2 rate: %lu | CPU3 rate: %lu",
+			get_rate(0), get_rate(1), get_rate(2), get_rate(3));
 #endif
 	return new_state;
 }
@@ -226,7 +215,7 @@ static void __ref bricked_hotplug_work(struct work_struct *work) {
 	case MSM_MPDEC_DOWN:
 		cpu = get_slowest_cpu();
 		if (cpu > 0) {
-			if (cpu_online(cpu) && !check_cpuboost(cpu))
+			if (cpu_online(cpu))
 				cpu_down(cpu);
 		}
 		break;
@@ -303,7 +292,7 @@ static void __ref bricked_hotplug_resume(struct work_struct *work)
 		}
 	}
 
-	if (wakeup_boost || required_wakeup) {
+	if (required_wakeup) {
 		/* Fire up all CPUs */
 		for_each_cpu_not(cpu, cpu_online_mask) {
 			if (cpu == 0)
@@ -336,7 +325,6 @@ static int lcd_notifier_callback(struct notifier_block *this,
 		queue_work_on(0, susp_wq, &resume_work);
 		break;
 	case LCD_EVENT_OFF_END:
-		INIT_DELAYED_WORK(&suspend_work, bricked_hotplug_suspend);
 		queue_delayed_work_on(0, susp_wq, &suspend_work, 
 				 msecs_to_jiffies(hotplug.suspend_defer_time * 1000)); 
 		break;
@@ -675,8 +663,6 @@ static ssize_t store_bricked_enabled(struct device *dev,
 static DEVICE_ATTR(startdelay, 644, show_startdelay, store_startdelay);
 static DEVICE_ATTR(delay, 644, show_delay, store_delay);
 static DEVICE_ATTR(idle_freq, 644, show_idle_freq, store_idle_freq);
-static DEVICE_ATTR(min_cpus, 644, show_min_cpus_online, store_min_cpus_online);
-static DEVICE_ATTR(max_cpus, 644, show_max_cpus_online, store_max_cpus_online);
 static DEVICE_ATTR(min_cpus_online, 644, show_min_cpus_online, store_min_cpus_online);
 static DEVICE_ATTR(max_cpus_online, 644, show_max_cpus_online, store_max_cpus_online);
 static DEVICE_ATTR(max_cpus_online_susp, 644, show_max_cpus_online_susp, store_max_cpus_online_susp);
@@ -687,8 +673,6 @@ static struct attribute *bricked_hotplug_attrs[] = {
 	&dev_attr_startdelay.attr,
 	&dev_attr_delay.attr,
 	&dev_attr_idle_freq.attr,
-	&dev_attr_min_cpus.attr,
-	&dev_attr_max_cpus.attr,
 	&dev_attr_min_cpus_online.attr,
 	&dev_attr_max_cpus_online.attr,
 	&dev_attr_max_cpus_online_susp.attr,
@@ -726,7 +710,7 @@ static int __devinit bricked_hotplug_probe(struct platform_device *pdev)
 	struct kobject *bricked_kobj;
 
 	bricked_kobj =
-		kobject_create_and_add(MPDEC_TAG, kernel_kobj);
+		kobject_create_and_add("msm_mpdecision", kernel_kobj);
 	if (!bricked_kobj) {
 		pr_err("%s kobject create failed!\n",
 			__func__);
