@@ -1704,6 +1704,7 @@
                 compatible = "qcom,msm-cpufreq";
                 qcom,cpufreq-table =
                         <  268800 /*  75 MHz */ >,
+                        <  300000 /*  75 MHz */ >,
                         <  422400 /* 150 MHz */ >,
                         <  652800 /* 200 MHz */ >,
                         <  729600 /* 307 MHz */ >,
