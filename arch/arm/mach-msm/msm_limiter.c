@@ -33,7 +33,7 @@
 #define DEFAULT_SUSPEND_DEFER_TIME	10
 #define DEFAULT_SUSPEND_FREQUENCY	729600
 #define DEFAULT_RESUME_FREQUENCY	2457600
-#define DEFAULT_MIN_FREQUENCY		300000
+#define DEFAULT_MIN_FREQUENCY		268800
 
 static unsigned int debug = 0;
 module_param_named(debug_mask, debug, uint, 0644);
