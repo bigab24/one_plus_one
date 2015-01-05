@@ -24,6 +24,7 @@
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/device.h>
+#include <../mach-msm/msm_rq_stats.c>
 
 #define DEBUG 0
 
