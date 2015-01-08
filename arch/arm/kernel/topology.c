@@ -13,7 +13,6 @@
 
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
-#include <linux/export.h>
 #include <linux/init.h>
 #include <linux/percpu.h>
 #include <linux/node.h>
@@ -178,7 +177,6 @@ static inline void update_cpu_power(unsigned int cpuid) {}
  * cpu topology table
  */
 struct cputopo_arm cpu_topology[NR_CPUS];
-EXPORT_SYMBOL_GPL(cpu_topology);
 
 const struct cpumask *cpu_coregroup_mask(int cpu)
 {

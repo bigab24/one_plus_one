@@ -53,7 +53,7 @@ MODULE_PARM_DESC(tjmax, "TjMax value in degrees Celsius");
 
 #define BASE_SYSFS_ATTR_NO	2	/* Sysfs Base attr no for coretemp */
 #define NUM_REAL_CORES		32	/* Number of Real cores per cpu */
-#define CORETEMP_NAME_LENGTH	19	/* String Length of attrs */
+#define CORETEMP_NAME_LENGTH	17	/* String Length of attrs */
 #define MAX_CORE_ATTRS		4	/* Maximum no of basic attrs */
 #define TOTAL_ATTRS		(MAX_CORE_ATTRS + 1)
 #define MAX_CORE_DATA		(NUM_REAL_CORES + BASE_SYSFS_ATTR_NO)
@@ -196,7 +196,7 @@ struct tjmax {
 	int tjmax;
 };
 
-static struct tjmax tjmax_table[] = {
+static struct tjmax __cpuinitconst tjmax_table[] = {
 	{ "CPU D410", 100000 },
 	{ "CPU D425", 100000 },
 	{ "CPU D510", 100000 },
@@ -212,7 +212,7 @@ static struct tjmax tjmax_table[] = {
 	{ "CPU CE4170", 110000 },	/* Model 0x1c, stepping 10	*/
 };
 
-static int adjust_tjmax(struct cpuinfo_x86 *c, u32 id,
+static int __cpuinit adjust_tjmax(struct cpuinfo_x86 *c, u32 id,
 				  struct device *dev)
 {
 	/* The 100C is default for both mobile and non mobile CPUs */
@@ -223,13 +223,6 @@ static int adjust_tjmax(struct cpuinfo_x86 *c, u32 id,
 	int err;
 	u32 eax, edx;
 	struct pci_dev *host_bridge;
-	int i;
-
-	/* explicit tjmax table entries override heuristics */
-	for (i = 0; i < ARRAY_SIZE(tjmax_table); i++) {
-		if (strstr(c->x86_model_id, tjmax_table[i].id))
-			return tjmax_table[i].tjmax;
-	}
 
 	/* Early chips have no MSR for TjMax */
 
@@ -238,8 +231,7 @@ static int adjust_tjmax(struct cpuinfo_x86 *c, u32 id,
 
 	/* Atom CPUs */
 
-	if (c->x86_model == 0x1c || c->x86_model == 0x26
-	    || c->x86_model == 0x27) {
+	if (c->x86_model == 0x1c) {
 		usemsr_ee = 0;
 
 		host_bridge = pci_get_bus_and_slot(0, PCI_DEVFN(0, 0));
@@ -252,9 +244,6 @@ static int adjust_tjmax(struct cpuinfo_x86 *c, u32 id,
 			tjmax = 90000;
 
 		pci_dev_put(host_bridge);
-	} else if (c->x86_model == 0x36) {
-		usemsr_ee = 0;
-		tjmax = 100000;
 	}
 
 	if (c->x86_model > 0xe && usemsr_ee) {

@@ -44,6 +44,7 @@
 #else
 # define asm_volatile_goto(x...)	do { asm goto(x); } while (0)
 #endif
+#define __linktime_error(message) __attribute__((__error__(message)))
 
 #if __GNUC_MINOR__ >= 5
 /*

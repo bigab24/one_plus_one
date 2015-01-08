@@ -636,7 +636,33 @@ void tick_nohz_idle_exit(void)
 		tick_nohz_account_idle_ticks(ts);
 	}
 
-	local_irq_enable();
+	/* Update jiffies first */
+	select_nohz_load_balancer(0);
+	tick_do_update_jiffies64(now);
+
+#ifndef CONFIG_VIRT_CPU_ACCOUNTING
+	/*
+	 * We stopped the tick in idle. Update process times would miss the
+	 * time we slept as update_process_times does only a 1 tick
+	 * accounting. Enforce that this is accounted to idle !
+	 */
+	ticks = jiffies - ts->idle_jiffies;
+	/*
+	 * We might be one off. Do not randomly account a huge number of ticks!
+	 */
+	if (ticks && ticks < LONG_MAX)
+		account_idle_ticks(ticks);
+#endif
+
+	calc_load_exit_idle();
+	touch_softlockup_watchdog();
+	/*
+	 * Cancel the scheduled timer and restore the tick
+	 */
+	ts->tick_stopped  = 0;
+	ts->idle_exittime = now;
+
+	tick_nohz_restart(ts, now);
 }
 
 static int tick_nohz_reprogram(struct tick_sched *ts, ktime_t now)
