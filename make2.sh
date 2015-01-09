@@ -3,8 +3,8 @@ if [ "$CPU_JOB_NUM" = "" ] ; then
 CPU_JOB_NUM=`grep -c processor /proc/cpuinfo`
 fi
 echo "Cleaning old files"
-rm -f ../one_plus_one/zip/Tyr*
-rm -f ../one_plus_one/zip/boot.img
+rm -f ../one_plus_one/zip2/Tyr*
+rm -f ../one_plus_one/zip2/boot.img
 rm -f ../ram*/image-new*
 rm -f ../ram*/ramdisk-new.cpio*
 rm -f ../ram*/spl*/boot.img-dtb
