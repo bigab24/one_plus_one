@@ -19,6 +19,7 @@
 #include <linux/uaccess.h>
 #include <linux/spinlock.h>
 #include <linux/delay.h>
+#include <linux/pm_runtime.h>
 #include <mach/msm_bus.h>
 #include <mach/msm_bus_board.h>
 
@@ -1663,8 +1664,6 @@ int mdss_mdp_pp_setup(struct mdss_mdp_ctl *ctl)
 	if ((!ctl->mfd) || (!mdss_pp_res))
 		return -EINVAL;
 
-	/* TODO: have some sort of reader/writer lock to prevent unclocked
-	 * access while display power is toggled */
 	mutex_lock(&ctl->lock);
 	if (!mdss_mdp_ctl_is_power_on(ctl)) {
 		ret = -EPERM;
@@ -1690,6 +1689,13 @@ int mdss_mdp_pp_setup_locked(struct mdss_mdp_ctl *ctl)
 	bool valid_mixers = true;
 	if ((!ctl->mfd) || (!mdss_pp_res))
 		return -EINVAL;
+
+	ret = pm_runtime_get_sync(&ctl->mfd->pdev->dev);
+	if (IS_ERR_VALUE(ret)) {
+		pr_err("Unable to setup with pm_runtime_get_sync err = %d\n",
+									ret);
+		goto exit;
+	}
 
 	/* treat fb_num the same as block logical id*/
 	disp_num = ctl->mfd->index;
@@ -2520,7 +2526,7 @@ int mdss_mdp_pp_panel_invert(bool enable)
 	mdata = mdss_mdp_get_mdata();
 	for (i = 0; i < mdata->nctl; i++) {
 		ctl = mdata->ctl_off + i;
-		if ((ctl->power_on) && (ctl->mfd) &&
+		if ((mdss_mdp_ctl_is_power_on(ctl)) && (ctl->mfd) &&
 			(ctl->mfd->index == 0)) {
 			ctl_d = ctl;
 			break;
